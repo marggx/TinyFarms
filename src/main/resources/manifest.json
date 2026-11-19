@@ -1,0 +1,30 @@
+{
+    "Group": "Marggx",
+    "Name": "TinyFarm",
+    "Version": "0.0.1",
+    "Description": "This adds lots of tiny farms to automate any item",
+    "Authors": [
+        {
+            "Name": "Marggx",
+            "Email": "hytale@marggx.dev",
+            "Url": "marggx.dev"
+        }
+    ],
+    "Website": "marggx.dev",
+    "Main": "dev.marggx.tinyfarms.TinyFarmsPlugin",
+    "ServerVersion": "^0.7.7",
+    "Dependencies": {
+        "Hytale:AssetModule": "*"
+    },
+    "OptionalDependencies": {
+        
+    },
+    "LoadBefore": {
+        
+    },
+    "DisabledByDefault": false,
+    "IncludesAssetPack": true,
+    "SubPlugins": [
+        
+    ]
+}

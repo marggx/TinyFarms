@@ -1,0 +1,29 @@
+{
+  "Input": [
+    {
+      "ItemId": "Plant_Sapling_Spruce",
+      "Quantity": 1
+    }
+  ],
+  "PrimaryOutput": {
+    "ItemId": "Wood_Softwood_Planks",
+    "Quantity": 3
+  },
+  "Output": [
+    {
+      "ItemId": "Wood_Softwood_Planks",
+      "Quantity": 3
+    },
+    {
+      "ItemId": "Ingredient_Stick",
+      "Quantity": 1
+    }
+  ],
+  "BenchRequirement": [
+    {
+      "Type": "Processing",
+      "Id": "TinyFarm"
+    }
+  ],
+  "TimeSeconds": 30
+}
