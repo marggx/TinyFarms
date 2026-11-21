@@ -1,7 +1,5 @@
 # Tiny Farms
 
-![Logo](img/Logo.png)
-
 ![Cover](img/Cover.png)
 
 Compact upgradable farm machines: process any sapling into logs and sticks,
@@ -24,10 +22,6 @@ powered by your tools, not fuel.
 - Transparent block: watch the input grow inside as it processes
 
 ![Durability](img/Durability.gif)
-
-## Showcase
-
-![Showcase](img/Showcase.mp4)
 
 ## Tools
 
