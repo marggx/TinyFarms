@@ -1,0 +1,25 @@
+{
+  "Input": [
+    {
+      "ItemId": "Plant_Crop_Berry_Wet_Block",
+      "Quantity": 1
+    }
+  ],
+  "PrimaryOutput": {
+    "ItemId": "Plant_Fruit_Berries_Red",
+    "Quantity": 2
+  },
+  "Output": [
+    {
+      "ItemId": "Plant_Fruit_Berries_Red",
+      "Quantity": 2
+    }
+  ],
+  "BenchRequirement": [
+    {
+      "Type": "Processing",
+      "Id": "TinyFarm"
+    }
+  ],
+  "TimeSeconds": 20
+}

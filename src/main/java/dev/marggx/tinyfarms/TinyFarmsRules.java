@@ -19,7 +19,8 @@ public final class TinyFarmsRules {
     private record Rule(String fuelPrefix, List<String> inputPrefixes) {}
 
     private static final List<Rule> TOOL_INPUT_RULES = List.of(
-            new Rule("Tool_Hatchet_", List.of("Plant_Sapling_"))
+            new Rule("Tool_Hatchet_", List.of("Plant_Sapling_")),
+            new Rule("Tool_Sickle_", List.of("Plant_Crop_Berry_"))
     );
 
     private TinyFarmsRules() {}
@@ -27,8 +28,7 @@ public final class TinyFarmsRules {
     /** Slot filter for the fuel container: it must hold real tools (broken or not). */
     public static boolean fuelAllowed(@Nullable ItemStack stack) {
         if (stack == null) return true;
-        var item = stack.getItem();
-        return item != null && item.getTool() != null;
+        return TinyMachines.isToolItem(stack);
     }
 
     /**

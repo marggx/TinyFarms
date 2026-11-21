@@ -44,11 +44,18 @@ public final class TinyMachines {
         }
     }
 
-    public static boolean isUsableTool(@Nullable ItemStack stack) {
-        if (stack == null) return false;
+    /** Tools either carry a Tool spec (hatchets, pickaxes...) or are durability tools by id prefix (sickles...). */
+    public static boolean isToolItem(@Nullable ItemStack stack) {
+        if (stack == null || stack.getItem() == null) return false;
         var item = stack.getItem();
-        if (item == null || item.getTool() == null) return false;
-        return stack.getMaxDurability() > 0 && !stack.isBroken();
+        return item.getTool() != null || item.getId().startsWith("Tool_");
+    }
+
+    public static boolean isUsableTool(@Nullable ItemStack stack) {
+        if (!isToolItem(stack)) return false;
+        if (stack.getMaxDurability() <= 0 || stack.isBroken()) return false;
+        // never consume the last point of durability
+        return stack.getDurability() >= TinyFarmsRules.durabilityPerCycle(0) + 1.0;
     }
 
     /**

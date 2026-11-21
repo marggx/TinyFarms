@@ -1,7 +1,7 @@
 {
   "TranslationProperties": {
-    "Name": "server.items.Bench_TinyFarm.name",
-    "Description": "server.items.Bench_TinyFarm.description"
+    "Name": "littlefarms.Bench_TinyFarm.name",
+    "Description": "littlefarms.Bench_TinyFarm.description"
   },
   "Icon": "Icons/ItemsGenerated/Bench_TinyFarm.png",
   "Categories": [
@@ -79,7 +79,7 @@
             ],
             "TimeSeconds": 3
           },
-          "CraftingTimeReductionModifier": 0.05,
+          "CraftingTimeReductionModifier": 0.0,
           "ExtraOutputSlot": 0
         },
         {
@@ -92,8 +92,8 @@
             ],
             "TimeSeconds": 3
           },
-          "CraftingTimeReductionModifier": 0.1,
-          "ExtraOutputSlot": 1
+          "CraftingTimeReductionModifier": 0.0,
+          "ExtraOutputSlot": 2
         },
         {
           "UpgradeRequirement": {
@@ -105,11 +105,12 @@
             ],
             "TimeSeconds": 3
           },
-          "CraftingTimeReductionModifier": 0.15,
+          "CraftingTimeReductionModifier": 0.2,
           "ExtraOutputSlot": 2
         },
         {
-          "ExtraOutputSlot": 3
+          "CraftingTimeReductionModifier": 0.25,
+          "ExtraOutputSlot": 4
         }
       ]
     },
@@ -135,7 +136,31 @@
               "Texture": "Blocks/Farms/Thorium.png",
               "Weight": 1
             }
-          ]
+          ],
+          "State": {
+            "Definitions": {
+              "Processing": {
+                "Looping": true,
+                "AmbientSoundEventId": "SFX_Furnace_Bench_Processing",
+                "CustomModelTexture": [
+                  {
+                    "Texture": "Blocks/Farms/Thorium.png",
+                    "Weight": 1
+                  }
+                ]
+              },
+              "ProcessCompleted": {
+                "Looping": true,
+                "AmbientSoundEventId": "SFX_Furnace_Bench_Processing",
+                "CustomModelTexture": [
+                  {
+                    "Texture": "Blocks/Farms/Thorium.png",
+                    "Weight": 1
+                  }
+                ]
+              }
+            }
+          }
         },
         "Tier3": {
           "CustomModelTexture": [
@@ -143,7 +168,31 @@
               "Texture": "Blocks/Farms/Cobalt.png",
               "Weight": 1
             }
-          ]
+          ],
+          "State": {
+            "Definitions": {
+              "Processing": {
+                "Looping": true,
+                "AmbientSoundEventId": "SFX_Furnace_Bench_Processing",
+                "CustomModelTexture": [
+                  {
+                    "Texture": "Blocks/Farms/Cobalt.png",
+                    "Weight": 1
+                  }
+                ]
+              },
+              "ProcessCompleted": {
+                "Looping": true,
+                "AmbientSoundEventId": "SFX_Furnace_Bench_Processing",
+                "CustomModelTexture": [
+                  {
+                    "Texture": "Blocks/Farms/Cobalt.png",
+                    "Weight": 1
+                  }
+                ]
+              }
+            }
+          }
         },
         "Tier4": {
           "CustomModelTexture": [
@@ -151,7 +200,31 @@
               "Texture": "Blocks/Farms/Adamantite.png",
               "Weight": 1
             }
-          ]
+          ],
+          "State": {
+            "Definitions": {
+              "Processing": {
+                "Looping": true,
+                "AmbientSoundEventId": "SFX_Furnace_Bench_Processing",
+                "CustomModelTexture": [
+                  {
+                    "Texture": "Blocks/Farms/Adamantite.png",
+                    "Weight": 1
+                  }
+                ]
+              },
+              "ProcessCompleted": {
+                "Looping": true,
+                "AmbientSoundEventId": "SFX_Furnace_Bench_Processing",
+                "CustomModelTexture": [
+                  {
+                    "Texture": "Blocks/Farms/Adamantite.png",
+                    "Weight": 1
+                  }
+                ]
+              }
+            }
+          }
         }
       }
     },

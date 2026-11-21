@@ -298,7 +298,10 @@ public class TinyMachineTickSystem extends EntityTickingSystem<ChunkStore> {
         var fuelContainer = machine.getFuelContainer();
         var stack = fuelContainer.getItemStack(fuelSlot);
         if (stack != null) {
-            fuelContainer.replaceItemStackInSlot(fuelSlot, stack, stack.withIncreasedDurability(-TinyFarmsRules.durabilityPerCycle(tierLevel)));
+            double cost = TinyFarmsRules.durabilityPerCycle(tierLevel);
+            if (stack.getDurability() - cost >= 1.0) {
+                fuelContainer.replaceItemStackInSlot(fuelSlot, stack, stack.withIncreasedDurability(-cost));
+            }
         }
     }
 

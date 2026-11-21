@@ -35,11 +35,11 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class TinyMachineDisplays {
     public static final float MIN_SCALE = 0.35f;
-    public static final float MAX_SCALE = 0.85f;
+    public static final float MAX_SCALE = 1.0f;
 
     private static final float Y_OFFSET = 0.1f;
     private static final int TTL_SECONDS = 600;
-    private static final float SCALE_EPSILON = 0.01f;
+    private static final float SCALE_EPSILON = 0.001f;
 
     private record Key(int x, int y, int z) {}
 

@@ -1,4 +1,2 @@
-ui.itemcategory.heads = Heads
-
-server.items.Bench_TinyFarm.name = Tiny Farm
-server.items.Bench_TinyFarm.description = A tiny farm machine. Drop in a resource and fuel it with a tool: each finished cycle burns tool durability and never consumes the resource. Upgradable for more output slots and gentler tools.
+Bench_TinyFarm.name = Tiny Farm
+Bench_TinyFarm.description = A tiny farm machine. Drop in a resource and fuel it with a tool: each finished cycle burns tool durability and never consumes the resource. Upgradable for more output slots and gentler tools.
