@@ -1,5 +1,9 @@
 # Tiny Farms
 
+![Logo](img/Logo.png)
+
+![Cover](img/Cover.png)
+
 Compact upgradable farm machines: process any sapling into logs and sticks,
 powered by your tools, not fuel.
 
@@ -9,13 +13,26 @@ powered by your tools, not fuel.
 
 - One machine, every sapling: 34 sawing recipes, each sapling yields its own
   tree's trunks plus sticks (softwood/spruce yields planks, like the vanilla resource)
+- Berry farming: red, winter and wet berry bushes produce berries
 - Tool-powered: the fuel slot takes any tool, each finished cycle burns a bit of
-  its durability, the sapling itself is never consumed
-- Four upgrade tiers: Iron, Thorium, Cobalt and Adamantite. Each tier adds an
-  output slot, speeds up crafting and is gentler on your tools
-  (1.0 / 0.9 / 0.8 / 0.7 durability per cycle)
+  its durability, the input itself is never consumed
+- Your tools never break: the machine stops at 1 durability and leaves the tool intact
+- Four upgrade tiers: Iron, Thorium, Cobalt and Adamantite
+  - Thorium: +2 output slots
+  - Cobalt: 20% faster crafting
+  - Adamantite: +2 output slots and 25% faster crafting
 - Transparent block: watch the input grow inside as it processes
-- Tools matter: an axe unlocks saplings, more tool types for more content coming
+
+![Durability](img/Durability.gif)
+
+## Showcase
+
+![Showcase](img/Showcase.mp4)
+
+## Tools
+
+- Axe: saws saplings into logs and sticks
+- Sickle: harvests berries from berry bushes
 
 ## Compatibility
 
