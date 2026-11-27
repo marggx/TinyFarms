@@ -1,6 +1,6 @@
 # Tiny Farms
 
-![Cover](img/Cover.png)
+![Cover](img/CoverFarm.png)
 
 Compact upgradable farm machines: process any sapling into logs and sticks,
 powered by your tools, not fuel.
@@ -12,6 +12,7 @@ powered by your tools, not fuel.
 - One machine, every sapling: 34 sawing recipes, each sapling yields its own
   tree's trunks plus sticks (softwood/spruce yields planks, like the vanilla resource)
 - Berry farming: red, winter and wet berry bushes produce berries
+- Crop farming: plant a crop seed (wheat, carrot, corn, potato, pumpkin and 9 more) and get that crop, with a chance of bonus Life Essence
 - Tool-powered: the fuel slot takes any tool, each finished cycle burns a bit of
   its durability, the input itself is never consumed
 - Your tools never break: the machine stops at 1 durability and leaves the tool intact
@@ -25,8 +26,8 @@ powered by your tools, not fuel.
 
 ## Tools
 
-- Axe: saws saplings into logs and sticks
-- Sickle: harvests berries from berry bushes
+- Hatchet: saws saplings into logs and sticks
+- Sickle: harvests berries from berry bushes and crops from crop seeds.
 
 ## Compatibility
 
