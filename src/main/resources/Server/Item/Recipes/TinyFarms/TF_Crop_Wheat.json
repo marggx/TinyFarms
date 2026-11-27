@@ -1,0 +1,25 @@
+{
+  "Input": [
+    {
+      "ItemId": "Plant_Seeds_Wheat",
+      "Quantity": 1
+    }
+  ],
+  "PrimaryOutput": {
+    "ItemId": "Plant_Crop_Wheat_Item",
+    "Quantity": 2
+  },
+  "Output": [
+    {
+      "ItemId": "Plant_Crop_Wheat_Item",
+      "Quantity": 2
+    }
+  ],
+  "BenchRequirement": [
+    {
+      "Type": "Processing",
+      "Id": "TinyFarm"
+    }
+  ],
+  "TimeSeconds": 20
+}

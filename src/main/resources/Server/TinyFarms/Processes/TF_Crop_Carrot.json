@@ -1,0 +1,48 @@
+{
+  "Tool": [
+    "Tool_Sickle_"
+  ],
+  "DurabilityCost": 1.0,
+  "TierDiscount": 0.1,
+  "MaxDiscountTiers": 3,
+  "ConsumeInput": false,
+  "Drops": {
+    "Type": "Multiple",
+    "Containers": [
+      {
+        "Type": "Single",
+        "Item": {
+          "ItemId": "Plant_Crop_Carrot_Item",
+          "QuantityMin": 1,
+          "QuantityMax": 1
+        }
+      },
+      {
+        "Type": "Single",
+        "Item": {
+          "ItemId": "Ingredient_Life_Essence",
+          "QuantityMin": 0,
+          "QuantityMax": 1
+        }
+      }
+    ]
+  },
+  "Display": {
+    "Type": "Block",
+    "Block": "Plant_Crop_Carrot_Block",
+    "State": "StageFinal",
+    "ScaleMin": 0.2,
+    "ScaleMax": 0.7,
+    "GrowWithProgress": true,
+    "Offset": [
+      0,
+      0.35,
+      0
+    ],
+    "Rotation": [
+      0,
+      0,
+      0
+    ]
+  }
+}

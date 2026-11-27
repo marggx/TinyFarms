@@ -1,0 +1,25 @@
+{
+  "Input": [
+    {
+      "ItemId": "Plant_Seeds_Chilli",
+      "Quantity": 1
+    }
+  ],
+  "PrimaryOutput": {
+    "ItemId": "Plant_Crop_Chilli_Item",
+    "Quantity": 2
+  },
+  "Output": [
+    {
+      "ItemId": "Plant_Crop_Chilli_Item",
+      "Quantity": 2
+    }
+  ],
+  "BenchRequirement": [
+    {
+      "Type": "Processing",
+      "Id": "TinyFarm"
+    }
+  ],
+  "TimeSeconds": 20
+}

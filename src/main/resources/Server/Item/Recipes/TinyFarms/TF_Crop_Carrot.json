@@ -1,0 +1,25 @@
+{
+  "Input": [
+    {
+      "ItemId": "Plant_Seeds_Carrot",
+      "Quantity": 1
+    }
+  ],
+  "PrimaryOutput": {
+    "ItemId": "Plant_Crop_Carrot_Item",
+    "Quantity": 1
+  },
+  "Output": [
+    {
+      "ItemId": "Plant_Crop_Carrot_Item",
+      "Quantity": 1
+    }
+  ],
+  "BenchRequirement": [
+    {
+      "Type": "Processing",
+      "Id": "TinyFarm"
+    }
+  ],
+  "TimeSeconds": 20
+}
