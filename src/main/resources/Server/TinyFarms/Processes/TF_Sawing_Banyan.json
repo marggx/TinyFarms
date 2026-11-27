@@ -1,0 +1,47 @@
+{
+  "Tool": [
+    "Tool_Hatchet_"
+  ],
+  "DurabilityCost": 1.0,
+  "TierDiscount": 0.1,
+  "MaxDiscountTiers": 3,
+  "ConsumeInput": false,
+  "Drops": {
+    "Type": "Multiple",
+    "Containers": [
+      {
+        "Type": "Single",
+        "Item": {
+          "ItemId": "Wood_Banyan_Trunk",
+          "QuantityMin": 3,
+          "QuantityMax": 3
+        }
+      },
+      {
+        "Type": "Single",
+        "Item": {
+          "ItemId": "Ingredient_Stick",
+          "QuantityMin": 1,
+          "QuantityMax": 1
+        }
+      }
+    ]
+  },
+  "Display": {
+    "Type": "Item",
+    "Item": "Plant_Sapling_Banyan",
+    "ScaleMin": 0.35,
+    "ScaleMax": 1.0,
+    "GrowWithProgress": true,
+    "Offset": [
+      0,
+      0.1,
+      0
+    ],
+    "Rotation": [
+      0,
+      0,
+      0
+    ]
+  }
+}

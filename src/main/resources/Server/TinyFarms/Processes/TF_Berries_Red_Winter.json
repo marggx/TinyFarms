@@ -1,0 +1,40 @@
+{
+  "Tool": [
+    "Tool_Sickle_"
+  ],
+  "DurabilityCost": 1.0,
+  "TierDiscount": 0.1,
+  "MaxDiscountTiers": 3,
+  "ConsumeInput": false,
+  "Drops": {
+    "Type": "Multiple",
+    "Containers": [
+      {
+        "Type": "Single",
+        "Item": {
+          "ItemId": "Plant_Fruit_Berries_Red",
+          "QuantityMin": 2,
+          "QuantityMax": 2
+        }
+      }
+    ]
+  },
+  "Display": {
+    "Type": "Block",
+    "Block": "Plant_Crop_Berry_Winter_Block",
+    "State": "StageFinal",
+    "ScaleMin": 0.05,
+    "ScaleMax": 0.4,
+    "GrowWithProgress": true,
+    "Offset": [
+      0,
+      0.1,
+      0
+    ],
+    "Rotation": [
+      0,
+      0,
+      0
+    ]
+  }
+}

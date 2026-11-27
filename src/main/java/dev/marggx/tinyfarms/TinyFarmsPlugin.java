@@ -7,14 +7,22 @@ import com.hypixel.hytale.server.core.modules.interaction.interaction.config.Int
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
 import com.hypixel.hytale.server.core.universe.world.storage.ChunkStore;
-
+import com.hypixel.hytale.assetstore.map.DefaultAssetMap;
+import com.hypixel.hytale.server.core.asset.HytaleAssetStore;
+import com.hypixel.hytale.server.core.asset.LoadAssetEvent;
+import com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType;
+import com.hypixel.hytale.server.core.asset.type.item.config.CraftingRecipe;
+import com.hypixel.hytale.server.core.asset.type.item.config.Item;
+import com.hypixel.hytale.server.core.asset.type.item.config.ItemDropList;
 import dev.marggx.tinyfarms.interaction.OpenTinyMachineInteraction;
+import dev.marggx.tinyfarms.process.TinyFarmProcess;
+import dev.marggx.tinyfarms.process.TinyProcesses;
 import dev.marggx.tinyfarms.system.TinyMachineLifecycleSystem;
 import dev.marggx.tinyfarms.system.TinyMachineTickSystem;
 
 import javax.annotation.Nonnull;
 
-public class TinyFarmsPlugin extends JavaPlugin {
+public final class TinyFarmsPlugin extends JavaPlugin {
     private static TinyFarmsPlugin INSTANCE;
 
     private ComponentType<ChunkStore, ProcessingBenchBlock> tinyMachineComponentType;
@@ -36,12 +44,22 @@ public class TinyFarmsPlugin extends JavaPlugin {
     @Override
     protected void setup() {
         tinyMachineComponentType = getChunkStoreRegistry().registerComponent(ProcessingBenchBlock.class, "TinyMachineBlock", ProcessingBenchBlock.CODEC);
-        var benchBlockComponentType = BenchBlock.getComponentType();
-        getChunkStoreRegistry().registerSystem(new TinyMachineTickSystem(tinyMachineComponentType, benchBlockComponentType));
-        getChunkStoreRegistry().registerSystem(new TinyMachineLifecycleSystem(tinyMachineComponentType, benchBlockComponentType));
+        TinyMachineState.setComponentType(getChunkStoreRegistry().registerComponent(TinyMachineState.class, TinyMachineState::new));
+        getAssetRegistry().register(HytaleAssetStore.builder(TinyFarmProcess.class, new DefaultAssetMap<>())
+            .setPath("TinyFarms/Processes")
+            .setCodec(TinyFarmProcess.CODEC)
+            .setKeyFunction(TinyFarmProcess::getId)
+            .loadsAfter(Item.class, BlockType.class, ItemDropList.class, CraftingRecipe.class)
+            .build());
+        getEventRegistry().register(LoadAssetEvent.PRIORITY_LOAD_LATE, LoadAssetEvent.class, event -> {
+            var errors = TinyProcesses.validate();
+            if (!errors.isEmpty()) {
+                errors.forEach(error -> getLogger().atSevere().log("TinyFarm process: %s", error));
+                event.failed(true, "TinyFarms has " + errors.size() + " invalid process definition(s), see log");
+            }
+        });
+        getChunkStoreRegistry().registerSystem(new TinyMachineTickSystem(tinyMachineComponentType, BenchBlock.getComponentType()));
+        getChunkStoreRegistry().registerSystem(new TinyMachineLifecycleSystem(tinyMachineComponentType, BenchBlock.getComponentType()));
         getCodecRegistry(Interaction.CODEC).register("OpenTinyMachine", OpenTinyMachineInteraction.class, OpenTinyMachineInteraction.CODEC);
     }
-
-    @Override
-    protected void start() {}
 }

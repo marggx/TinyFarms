@@ -1,12 +1,12 @@
 package dev.marggx.tinyfarms.system;
 
 import com.hypixel.hytale.builtin.crafting.component.BenchBlock;
-import com.hypixel.hytale.builtin.crafting.component.CraftingManager;
 import com.hypixel.hytale.builtin.crafting.component.ProcessingBenchBlock;
 import com.hypixel.hytale.builtin.crafting.window.BenchWindow;
 import com.hypixel.hytale.component.ArchetypeChunk;
 import com.hypixel.hytale.component.CommandBuffer;
 import com.hypixel.hytale.component.ComponentType;
+import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.system.tick.EntityTickingSystem;
@@ -16,35 +16,31 @@ import com.hypixel.hytale.server.core.asset.type.blocktype.config.StateData;
 import com.hypixel.hytale.server.core.asset.type.blocktype.config.bench.ProcessingBench;
 import com.hypixel.hytale.server.core.asset.type.item.config.CraftingRecipe;
 import com.hypixel.hytale.server.core.inventory.ItemStack;
+import com.hypixel.hytale.server.core.blocktype.component.BlockPhysics;
 import com.hypixel.hytale.server.core.inventory.container.TestRemoveItemSlotResult;
 import com.hypixel.hytale.server.core.modules.block.BlockModule;
 import com.hypixel.hytale.server.core.modules.time.WorldTimeResource;
 import com.hypixel.hytale.server.core.universe.world.chunk.section.BlockSection;
 import com.hypixel.hytale.server.core.universe.world.chunk.section.ChunkSection;
 import com.hypixel.hytale.server.core.universe.world.storage.ChunkStore;
-
-import dev.marggx.tinyfarms.TinyFarmsRules;
+import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import dev.marggx.tinyfarms.TinyMachineDisplays;
+import dev.marggx.tinyfarms.TinyMachineState;
 import dev.marggx.tinyfarms.TinyMachines;
+import dev.marggx.tinyfarms.process.TinyFarmProcess;
+import dev.marggx.tinyfarms.process.TinyProcesses;
 
 import javax.annotation.Nonnull;
-import org.joml.Vector3i;
+import javax.annotation.Nullable;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 /**
- * Drives the durability-fueled Tiny Farm machine.
- *
- * <p>Mirrors the built-in {@code BenchSystems.ProcessingBenchTick} layout so the vanilla
- * Processing bench window/client behave normally, but replaces the fuel and input logic with:
- * <ul>
- *   <li>Fuel = a damageable tool whose durability is burned per completed cycle. The tool item
- *       itself is never consumed. When it breaks, the machine stops.</li>
- *   <li>The recipe input (e.g. a sapling) only has to be present - it is never consumed.</li>
- *   <li>Cycle time comes from the registered {@link CraftingRecipe} for the bench.</li>
- * </ul>
+ * Mirrors {@code BenchSystems.ProcessingBenchTick} so the vanilla processing bench window and
+ * client behave normally, but a damageable tool in the fuel slot pays durability per cycle
+ * instead of burning fuel, and the input only has to be present.
  */
 public class TinyMachineTickSystem extends EntityTickingSystem<ChunkStore> {
     private final ComponentType<ChunkStore, ProcessingBenchBlock> componentType;
@@ -62,6 +58,41 @@ public class TinyMachineTickSystem extends EntityTickingSystem<ChunkStore> {
         return componentType;
     }
 
+    private record Ctx(ProcessingBenchBlock machine, BenchBlock benchBlock, BlockModule.BlockStateInfo blockStateInfo,
+                       ProcessingBench bench, BlockType blockType, ChunkStore chunkStore, Ref<ChunkStore> sectionRef,
+                       Store<EntityStore> entityStore, int x, int y, int z, int rotationIndex, Instant gameTime,
+                       Map<UUID, BenchWindow> windows, String state) {
+
+        boolean inState(String name) {
+            return name.equals(state);
+        }
+
+        void setState(String name) {
+            machine.setBlockInteractionState(name, blockType, chunkStore, sectionRef, x, y, z);
+        }
+
+        void play(int soundEventIndex) {
+            machine.playSound(soundEventIndex, entityStore, blockType, rotationIndex, x, y, z);
+        }
+
+        /** Leaves a running or completed state with the matching sound. */
+        void interrupt(boolean endSoundWhenCompleted) {
+            if (inState(ProcessingBenchBlock.PROCESSING)) {
+                setState(StateData.NULL_STATE_ID);
+                play(bench.getFailedSoundEventIndex());
+            } else if (inState(ProcessingBenchBlock.PROCESS_COMPLETED)) {
+                setState(StateData.NULL_STATE_ID);
+                play(endSoundWhenCompleted ? bench.getEndSoundEventIndex() : bench.getFailedSoundEventIndex());
+            }
+        }
+
+        void halt(boolean resetProgress) {
+            if (resetProgress) machine.setInputProgress(0);
+            machine.setActive(false, benchBlock, blockStateInfo);
+            machine.setLastTickGameTime(gameTime);
+        }
+    }
+
     @Override
     public void tick(float dt, int index, @Nonnull ArchetypeChunk<ChunkStore> archetypeChunk, @Nonnull Store<ChunkStore> store, @Nonnull CommandBuffer<ChunkStore> commandBuffer) {
         var machine = archetypeChunk.getComponent(index, componentType);
@@ -71,23 +102,32 @@ public class TinyMachineTickSystem extends EntityTickingSystem<ChunkStore> {
 
         var sectionRef = blockStateInfo.getSectionRef();
         if (!sectionRef.isValid()) return;
-
         var section = store.getComponent(sectionRef, ChunkSection.getComponentType());
-        if (section == null) return;
         var blockSection = store.getComponent(sectionRef, BlockSection.getComponentType());
-        if (blockSection == null) return;
+        if (section == null || blockSection == null) return;
 
         int blockIndex = blockStateInfo.getIndex();
         int localX = ChunkUtil.xFromIndex(blockIndex);
         int localY = ChunkUtil.yFromIndex(blockIndex);
         int localZ = ChunkUtil.zFromIndex(blockIndex);
+        var blockType = BlockType.getAssetMap().getAsset(blockSection.get(localX, localY, localZ));
+        if (blockType == null) return;
+
+        // BlockOperations.setBlock creates BlockPhysics through the store, which throws mid-tick
+        if (blockType.hasSupport() && store.getComponent(sectionRef, BlockPhysics.getComponentType()) == null) {
+            commandBuffer.ensureComponent(sectionRef, BlockPhysics.getComponentType());
+            return;
+        }
+
+        var machineState = archetypeChunk.getComponent(index, TinyMachineState.getComponentType());
+        if (machineState == null) {
+            commandBuffer.ensureAndGetComponent(archetypeChunk.getReferenceTo(index), TinyMachineState.getComponentType());
+            return;
+        }
+
         int blockX = ChunkUtil.worldCoordFromLocalCoord(section.getX(), localX);
         int blockY = ChunkUtil.worldCoordFromLocalCoord(section.getY(), localY);
         int blockZ = ChunkUtil.worldCoordFromLocalCoord(section.getZ(), localZ);
-
-        var blockId = blockSection.get(localX, localY, localZ);
-        var blockType = BlockType.getAssetMap().getAsset(blockId);
-        if (blockType == null) return;
         int rotationIndex = blockSection.getRotationIndex(localX, localY, localZ);
 
         var chunkStore = store.getExternalData();
@@ -95,217 +135,164 @@ public class TinyMachineTickSystem extends EntityTickingSystem<ChunkStore> {
         var entityStore = world.getEntityStore().getStore();
 
         // Vanilla upgrades only re-setup the vanilla component type; keep our machine in sync
-        var machinePos = new Vector3i(blockX, blockY, blockZ);
-        if (TinyMachines.knownTier(machinePos) != benchBlock.getTierLevel()) {
-            machine.setupSlots(world, benchBlock, blockStateInfo, blockX, blockY, blockZ, blockType, rotationIndex);
-            TinyMachines.applyFuelFilter(machine);
-            TinyMachines.trackTier(machinePos, benchBlock.getTierLevel());
+        int tierLevel = benchBlock.getTierLevel();
+        if (machineState.getTier() != tierLevel) {
+            TinyMachines.setupSlots(machine, world, benchBlock, blockStateInfo, blockX, blockY, blockZ, blockType, rotationIndex);
+            machineState.setTier(tierLevel);
         }
 
         var processingBench = machine.getProcessingBench();
         if (processingBench == null) return;
 
-        // 3D display: input item grows with progress (kept up to date on every tick path)
-        float progress01 = 0f;
-        if (machine.getRecipe() != null) {
-            float recipeTime = machine.getRecipeTimeSeconds(benchBlock.getTierLevel());
-            if (recipeTime > 0) progress01 = machine.getInputProgress() / recipeTime;
-        }
-        TinyMachineDisplays.update(world, blockX, blockY, blockZ,
-                machine.getInputContainer().getItemStack((short) 0), progress01);
-
         final Instant currentGameTime = entityStore.getResource(WorldTimeResource.getResourceType()).getGameTime();
-
+        final var lastTick = machine.getLastTickGameTime();
         final float effectiveDt;
-        if (machine.getLastTickGameTime() == null || currentGameTime == null || currentGameTime.equals(machine.getLastTickGameTime())) {
+        if (lastTick == null || currentGameTime == null || currentGameTime.equals(lastTick)) {
             effectiveDt = 0;
         } else {
-            float gameElapsedSeconds = Math.max(0, currentGameTime.toEpochMilli() - machine.getLastTickGameTime().toEpochMilli()) / 1000f;
+            float gameElapsedSeconds = Math.max(0, currentGameTime.toEpochMilli() - lastTick.toEpochMilli()) / 1000f;
             effectiveDt = (float) (gameElapsedSeconds / WorldTimeResource.getSecondsPerTick(world));
         }
 
-        String currentState = blockType.getCurrentInteractionState();
-        Map<UUID, BenchWindow> windows = benchBlock.getWindows();
+        var ctx = new Ctx(machine, benchBlock, blockStateInfo, processingBench, blockType, chunkStore, sectionRef, entityStore,
+                blockX, blockY, blockZ, rotationIndex, currentGameTime, benchBlock.getWindows(), blockType.getCurrentInteractionState());
 
         machine.getProcessingSlots().clear();
         machine.checkForRecipeUpdate(benchBlock);
+        var process = TinyProcesses.of(machine.getRecipe());
+        var recipe = process != null ? machine.getRecipe() : null;
 
+        float recipeTime = recipe != null ? machine.getRecipeTimeSeconds(tierLevel) : 0f;
+        float progress01 = recipeTime > 0 ? machine.getInputProgress() / recipeTime : 0f;
+        TinyMachineDisplays.update(world, machineState, blockX, blockY, blockZ,
+                machine.getInputContainer().getItemStack((short) 0), process, progress01);
+
+        double toolCost = process != null ? process.durabilityCost(tierLevel) : 0;
         boolean hasFuelSlots = processingBench.getFuel() != null;
+        short fuelSlot = hasFuelSlots ? TinyMachines.findFuelToolSlot(machine, toolCost) : -1;
         boolean canProcess = false;
-        var recipe = machine.getRecipe();
-        short fuelSlot = hasFuelSlots ? TinyMachines.findFuelToolSlot(machine) : -1;
 
         if (recipe != null) {
-            var outputItemStacks = CraftingManager.getOutputItemStacks(recipe);
-            if (!machine.getOutputContainer().canAddItemStacks(outputItemStacks, false, false)) {
-                if (ProcessingBenchBlock.PROCESSING.equals(currentState)) {
-                    machine.setBlockInteractionState(StateData.NULL_STATE_ID, blockType, chunkStore, sectionRef, blockX, blockY, blockZ);
-                    machine.playSound(processingBench.getFailedSoundEventIndex(), entityStore, blockType, rotationIndex, blockX, blockY, blockZ);
-                } else if (ProcessingBenchBlock.PROCESS_COMPLETED.equals(currentState)) {
-                    machine.setBlockInteractionState(StateData.NULL_STATE_ID, blockType, chunkStore, sectionRef, blockX, blockY, blockZ);
-                    machine.playSound(processingBench.getEndSoundEventIndex(), entityStore, blockType, rotationIndex, blockX, blockY, blockZ);
-                }
-                machine.setActive(false, benchBlock, blockStateInfo);
-                machine.setLastTickGameTime(currentGameTime);
+            if (!machine.getOutputContainer().canAddItemStacks(process.worstCase(), false, false)) {
+                ctx.interrupt(true);
+                ctx.halt(false);
                 return;
             }
 
-            var inputMaterials = CraftingManager.getInputMaterials(recipe);
-            List<TestRemoveItemSlotResult> result = machine.getInputContainer().getSlotMaterialsToRemove(inputMaterials, ProcessingBenchBlock.EXACT_RESOURCE_AMOUNTS, true);
-
+            List<TestRemoveItemSlotResult> result = machine.getInputContainer()
+                    .getSlotMaterialsToRemove(process.inputMaterials(recipe), ProcessingBenchBlock.EXACT_RESOURCE_AMOUNTS, true);
             if (result.isEmpty()) {
-                if (ProcessingBenchBlock.PROCESSING.equals(currentState)) {
-                    machine.setBlockInteractionState(StateData.NULL_STATE_ID, blockType, chunkStore, sectionRef, blockX, blockY, blockZ);
-                    machine.playSound(processingBench.getFailedSoundEventIndex(), entityStore, blockType, rotationIndex, blockX, blockY, blockZ);
-                } else if (ProcessingBenchBlock.PROCESS_COMPLETED.equals(currentState)) {
-                    machine.setBlockInteractionState(StateData.NULL_STATE_ID, blockType, chunkStore, sectionRef, blockX, blockY, blockZ);
-                    machine.playSound(processingBench.getEndSoundEventIndex(), entityStore, blockType, rotationIndex, blockX, blockY, blockZ);
-                }
-                machine.setInputProgress(0);
-                machine.setActive(false, benchBlock, blockStateInfo);
+                ctx.interrupt(true);
                 machine.clearCurrentRecipe();
-                machine.setLastTickGameTime(currentGameTime);
+                ctx.halt(true);
                 return;
             }
-
             for (TestRemoveItemSlotResult item : result) {
                 machine.getProcessingSlots().addAll(item.getPickedSlots());
             }
 
-            // Tool gating: the inserted fuel tool must unlock this recipe's inputs
             var fuelStack = fuelSlot >= 0 ? machine.getFuelContainer().getItemStack(fuelSlot) : null;
-            if (!TinyFarmsRules.recipeAllowed(recipe, fuelStack)) {
-                if (ProcessingBenchBlock.PROCESSING.equals(currentState) || ProcessingBenchBlock.PROCESS_COMPLETED.equals(currentState)) {
-                    machine.setBlockInteractionState(StateData.NULL_STATE_ID, blockType, chunkStore, sectionRef, blockX, blockY, blockZ);
-                    machine.playSound(processingBench.getFailedSoundEventIndex(), entityStore, blockType, rotationIndex, blockX, blockY, blockZ);
-                }
-                machine.setInputProgress(0);
-                machine.setActive(false, benchBlock, blockStateInfo);
-                machine.setLastTickGameTime(currentGameTime);
+            if (fuelStack == null || !process.acceptsTool(fuelStack.getItemId())) {
+                ctx.interrupt(false);
+                ctx.halt(true);
                 return;
             }
 
-            machine.sendProcessingSlots(windows);
+            machine.sendProcessingSlots(ctx.windows());
             canProcess = true;
         } else if (!hasFuelSlots) {
-            if (ProcessingBenchBlock.PROCESSING.equals(currentState)) {
-                machine.setBlockInteractionState(StateData.NULL_STATE_ID, blockType, chunkStore, sectionRef, blockX, blockY, blockZ);
-                machine.playSound(processingBench.getFailedSoundEventIndex(), entityStore, blockType, rotationIndex, blockX, blockY, blockZ);
-            } else if (ProcessingBenchBlock.PROCESS_COMPLETED.equals(currentState)) {
-                machine.setBlockInteractionState(StateData.NULL_STATE_ID, blockType, chunkStore, sectionRef, blockX, blockY, blockZ);
-                machine.playSound(processingBench.getEndSoundEventIndex(), entityStore, blockType, rotationIndex, blockX, blockY, blockZ);
-            }
+            ctx.interrupt(true);
             machine.setLastTickGameTime(currentGameTime);
             return;
         } else {
             boolean allowNoInputProcessing = processingBench.shouldAllowNoInputProcessing();
-
-            if (!allowNoInputProcessing && ProcessingBenchBlock.PROCESSING.equals(currentState)) {
-                machine.setBlockInteractionState(StateData.NULL_STATE_ID, blockType, chunkStore, sectionRef, blockX, blockY, blockZ);
-                machine.playSound(processingBench.getFailedSoundEventIndex(), entityStore, blockType, rotationIndex, blockX, blockY, blockZ);
-            } else if (ProcessingBenchBlock.PROCESS_COMPLETED.equals(currentState)) {
-                machine.setBlockInteractionState(StateData.NULL_STATE_ID, blockType, chunkStore, sectionRef, blockX, blockY, blockZ);
-                machine.playSound(processingBench.getEndSoundEventIndex(), entityStore, blockType, rotationIndex, blockX, blockY, blockZ);
-                machine.setActive(false, benchBlock, blockStateInfo);
-                machine.sendProgress(0, windows);
-                machine.setLastTickGameTime(currentGameTime);
+            if (!allowNoInputProcessing || ctx.inState(ProcessingBenchBlock.PROCESS_COMPLETED)) {
+                ctx.interrupt(true);
+                machine.sendProgress(0, ctx.windows());
+                ctx.halt(false);
                 return;
             }
-
-            machine.sendProgress(0, windows);
-
-            if (!allowNoInputProcessing) {
-                machine.setActive(false, benchBlock, blockStateInfo);
-                machine.setLastTickGameTime(currentGameTime);
-                return;
-            }
+            machine.sendProgress(0, ctx.windows());
         }
 
         int completions = 0;
         if (canProcess && fuelSlot >= 0) {
             machine.setActive(true, benchBlock, blockStateInfo);
-            completions = processCycles(machine, benchBlock, recipe, effectiveDt, fuelSlot);
+            completions = processCycles(machine, tierLevel, recipe, process, effectiveDt, fuelSlot);
         } else if (machine.isActive()) {
             machine.setActive(false, benchBlock, blockStateInfo);
         }
 
         machine.getProcessingFuelSlots().clear();
         if (hasFuelSlots) {
-            fuelSlot = TinyMachines.findFuelToolSlot(machine);
-            if (fuelSlot >= 0) {
-                machine.getProcessingFuelSlots().add(fuelSlot);
-                machine.sendProcessingFuelSlots(windows);
-            } else {
-                if (ProcessingBenchBlock.PROCESSING.equals(currentState) || ProcessingBenchBlock.PROCESS_COMPLETED.equals(currentState)) {
-                    machine.setBlockInteractionState(StateData.NULL_STATE_ID, blockType, chunkStore, sectionRef, blockX, blockY, blockZ);
-                    machine.playSound(processingBench.getFailedSoundEventIndex(), entityStore, blockType, rotationIndex, blockX, blockY, blockZ);
-                }
-                machine.setActive(false, benchBlock, blockStateInfo);
-                machine.setLastTickGameTime(currentGameTime);
+            fuelSlot = TinyMachines.findFuelToolSlot(machine, toolCost);
+            if (fuelSlot < 0) {
+                ctx.interrupt(false);
+                ctx.halt(false);
                 return;
             }
-            TinyMachines.refreshFuelDisplay(machine, windows);
+            machine.getProcessingFuelSlots().add(fuelSlot);
+            machine.sendProcessingFuelSlots(ctx.windows());
+            TinyMachines.refreshFuelDisplay(machine, fuelSlot, ctx.windows());
         }
 
         if (completions > 0) {
-            machine.setBlockInteractionState(ProcessingBenchBlock.PROCESS_COMPLETED, blockType, chunkStore, sectionRef, blockX, blockY, blockZ);
-            machine.playSound(machine.getBench().getCompletedSoundEventIndex(), entityStore, blockType, rotationIndex, blockX, blockY, blockZ);
+            ctx.setState(ProcessingBenchBlock.PROCESS_COMPLETED);
+            ctx.play(machine.getBench().getCompletedSoundEventIndex());
         } else {
-            if (!ProcessingBenchBlock.PROCESSING.equals(currentState)) {
-                machine.setBlockInteractionState(ProcessingBenchBlock.PROCESSING, blockType, chunkStore, sectionRef, blockX, blockY, blockZ);
-            }
+            if (!ctx.inState(ProcessingBenchBlock.PROCESSING)) ctx.setState(ProcessingBenchBlock.PROCESSING);
             if (canProcess) {
-                int tierLevel = benchBlock.getTierLevel();
-                float recipeTime = machine.getRecipeTimeSeconds(tierLevel);
-                if (machine.getRecipe() != null && recipeTime > 0) {
-                    machine.sendProgress(machine.getInputProgress() / recipeTime, windows);
-                } else {
-                    machine.sendProgress(0, windows);
-                }
+                float cycleTime = machine.getRecipeTimeSeconds(tierLevel);
+                machine.sendProgress(cycleTime > 0 ? machine.getInputProgress() / cycleTime : 0, ctx.windows());
             }
         }
 
         machine.setLastTickGameTime(currentGameTime);
     }
 
-    private int processCycles(@Nonnull ProcessingBenchBlock machine, @Nonnull BenchBlock benchBlock, @javax.annotation.Nullable CraftingRecipe recipe, float dt, short fuelSlot) {
-        if (recipe == null || dt <= 0) return 0;
-        var outputStacks = CraftingManager.getOutputItemStacks(recipe);
-        int tierLevel = benchBlock.getTierLevel();
+    private int processCycles(@Nonnull ProcessingBenchBlock machine, int tierLevel, @Nonnull CraftingRecipe recipe,
+                              @Nonnull TinyFarmProcess process, float dt, short fuelSlot) {
+        if (dt <= 0) return 0;
+        var outputStacks = process.worstCase();
+        double cost = process.durabilityCost(tierLevel);
         float cycleTime = machine.getRecipeTimeSeconds(tierLevel);
 
         int completions = 0;
         if (cycleTime <= 0) {
-            while (hasFuel(machine, fuelSlot) && machine.getOutputContainer().canAddItemStacks(outputStacks, false, false)) {
-                completeOneCycle(machine, outputStacks, fuelSlot, tierLevel);
+            while (canCycle(machine, recipe, process, fuelSlot, cost, outputStacks)) {
+                completeOneCycle(machine, recipe, process, fuelSlot, cost);
                 completions++;
             }
             return completions;
         }
 
         float progress = machine.getInputProgress() + dt;
-        while (progress >= cycleTime && hasFuel(machine, fuelSlot) && machine.getOutputContainer().canAddItemStacks(outputStacks, false, false)) {
-            completeOneCycle(machine, outputStacks, fuelSlot, tierLevel);
+        while (progress >= cycleTime && canCycle(machine, recipe, process, fuelSlot, cost, outputStacks)) {
+            completeOneCycle(machine, recipe, process, fuelSlot, cost);
             progress -= cycleTime;
             completions++;
         }
-        machine.setInputProgress(Math.max(0, progress));
+        machine.setInputProgress(Math.min(progress, cycleTime));
         return completions;
     }
 
-    private void completeOneCycle(@Nonnull ProcessingBenchBlock machine, @Nonnull List<ItemStack> outputStacks, short fuelSlot, int tierLevel) {
-        machine.getOutputContainer().addItemStacks(outputStacks, false, false, false);
+    private boolean canCycle(@Nonnull ProcessingBenchBlock machine, @Nonnull CraftingRecipe recipe, @Nonnull TinyFarmProcess process,
+                             short fuelSlot, double cost, @Nonnull List<ItemStack> outputStacks) {
+        if (!TinyMachines.isUsableTool(machine.getFuelContainer().getItemStack(fuelSlot), cost)) return false;
+        if (!machine.getOutputContainer().canAddItemStacks(outputStacks, false, false)) return false;
+        return !process.isConsumeInput() || !machine.getInputContainer()
+                .getSlotMaterialsToRemove(process.inputMaterials(recipe), ProcessingBenchBlock.EXACT_RESOURCE_AMOUNTS, true).isEmpty();
+    }
+
+    private void completeOneCycle(@Nonnull ProcessingBenchBlock machine, @Nonnull CraftingRecipe recipe, @Nonnull TinyFarmProcess process, short fuelSlot, double cost) {
+        if (process.isConsumeInput()) {
+            machine.getInputContainer().removeMaterials(process.inputMaterials(recipe), true, ProcessingBenchBlock.EXACT_RESOURCE_AMOUNTS, true);
+        }
+        machine.getOutputContainer().addItemStacks(process.roll(), false, false, false);
         var fuelContainer = machine.getFuelContainer();
         var stack = fuelContainer.getItemStack(fuelSlot);
         if (stack != null) {
-            double cost = TinyFarmsRules.durabilityPerCycle(tierLevel);
-            if (stack.getDurability() - cost >= 1.0) {
-                fuelContainer.replaceItemStackInSlot(fuelSlot, stack, stack.withIncreasedDurability(-cost));
-            }
+            fuelContainer.replaceItemStackInSlot(fuelSlot, stack, stack.withIncreasedDurability(-cost));
         }
-    }
-
-    private static boolean hasFuel(@Nonnull ProcessingBenchBlock machine, short fuelSlot) {
-        return TinyMachines.isUsableTool(machine.getFuelContainer().getItemStack(fuelSlot));
     }
 }

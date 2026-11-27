@@ -33,14 +33,8 @@ import javax.annotation.Nullable;
 import static com.hypixel.hytale.builtin.crafting.component.ProcessingBenchBlock.PROCESSING;
 import static com.hypixel.hytale.builtin.crafting.component.ProcessingBenchBlock.PROCESS_COMPLETED;
 
-/**
- * A block interaction type that attempts to open the Tiny Farm machine processing bench page.
- */
-public class OpenTinyMachineInteraction extends SimpleBlockInteraction {
+public final class OpenTinyMachineInteraction extends SimpleBlockInteraction {
 
-    /**
-     * The codec used for parsing {@link OpenTinyMachineInteraction} instances
-     */
     @Nonnull
     public static final BuilderCodec<OpenTinyMachineInteraction> CODEC = BuilderCodec.builder(OpenTinyMachineInteraction.class, OpenTinyMachineInteraction::new, SimpleBlockInteraction.CODEC)
         .documentation("Opens the Tiny Farm machine processing bench page.")
@@ -64,11 +58,11 @@ public class OpenTinyMachineInteraction extends SimpleBlockInteraction {
         final var benchState = chunkStoreStore.getComponent(blockEntityRef, TinyFarmsPlugin.get().getTinyMachineComponentType());
         if (benchState == null) {
             final var playerRefComponent = commandBuffer.getComponent(ref, PlayerRef.getComponentType());
-            assert playerRefComponent != null;
-
-            playerRefComponent.sendMessage(Message.translation("server.interactions.invalidBlockState")
-                .param("interaction", getClass().getSimpleName())
-                .param("blockState", "null"));
+            if (playerRefComponent != null) {
+                playerRefComponent.sendMessage(Message.translation("server.interactions.invalidBlockState")
+                    .param("interaction", getClass().getSimpleName())
+                    .param("blockState", "null"));
+            }
             return;
         }
 
@@ -76,22 +70,22 @@ public class OpenTinyMachineInteraction extends SimpleBlockInteraction {
         if (benchBlock == null) return;
 
         final var blockStateInfo = chunkStoreStore.getComponent(blockEntityRef, BlockModule.BlockStateInfo.getComponentType());
+        if (blockStateInfo == null) return;
 
         final var blockSection = chunkStoreStore.getComponent(sectionRef, BlockSection.getComponentType());
         if (blockSection == null) return;
         final var blockType = BlockType.getAssetMap().getAsset(blockSection.get(pos.x, pos.y, pos.z));
+        if (blockType == null || blockType.getBench() == null) return;
 
         final var uuidComponent = commandBuffer.getComponent(ref, UUIDComponent.getComponentType());
-        if (uuidComponent == null) {
-            return;
-        }
+        if (uuidComponent == null) return;
         final var uuid = uuidComponent.getUuid();
         final int rotationIndex = blockSection.getRotationIndex(pos.x, pos.y, pos.z);
         final var window = new ProcessingBenchWindow(benchState, benchBlock, blockStateInfo, pos.x, pos.y, pos.z, rotationIndex, blockType);
 
         final var windows = benchBlock.getWindows();
         if (windows.putIfAbsent(uuid, window) == null) {
-            TinyMachines.refreshFuelDisplay(benchState, windows);
+            TinyMachines.refreshFuelDisplay(benchState, TinyMachines.findFuelToolSlot(benchState, 0), windows);
 
             if (playerComponent.getPageManager().setPageWithWindows(ref, store, Page.Bench, true, window)) {
                 window.registerCloseEvent(event -> {
@@ -106,7 +100,6 @@ public class OpenTinyMachineInteraction extends SimpleBlockInteraction {
                     final String interactionState = currentBlockType.getCurrentInteractionState();
 
                     if (windows.isEmpty() && !PROCESSING.equals(interactionState) && !PROCESS_COMPLETED.equals(interactionState)) {
-                        // Use tier state name to preserve tier level instead of resetting to NULL_STATE_ID
                         BlockOperations.setBlockInteractionState(chunkStore, currentSectionRef, pos.x, pos.y, pos.z,
                             BenchBlock.getBaseBlockType(currentBlockType), benchBlock.getTierStateName(), false);
                     }
@@ -128,7 +121,5 @@ public class OpenTinyMachineInteraction extends SimpleBlockInteraction {
     }
 
     @Override
-    protected void simulateInteractWithBlock(@Nonnull InteractionType type, @Nonnull InteractionContext context, @Nullable ItemStack itemInHand, @Nonnull World world, @Nonnull Vector3i targetBlock) {
-
-    }
+    protected void simulateInteractWithBlock(@Nonnull InteractionType type, @Nonnull InteractionContext context, @Nullable ItemStack itemInHand, @Nonnull World world, @Nonnull Vector3i targetBlock) {}
 }

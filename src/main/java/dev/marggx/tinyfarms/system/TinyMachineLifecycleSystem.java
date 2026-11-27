@@ -4,11 +4,11 @@ import com.hypixel.hytale.builtin.crafting.component.BenchBlock;
 import com.hypixel.hytale.builtin.crafting.component.ProcessingBenchBlock;
 import com.hypixel.hytale.component.AddReason;
 import com.hypixel.hytale.component.CommandBuffer;
+import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.component.Holder;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.RemoveReason;
 import com.hypixel.hytale.component.Store;
-import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.system.RefSystem;
 import com.hypixel.hytale.math.util.ChunkUtil;
@@ -23,22 +23,16 @@ import com.hypixel.hytale.server.core.universe.world.chunk.section.ChunkSection;
 import com.hypixel.hytale.server.core.universe.world.storage.ChunkStore;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import dev.marggx.tinyfarms.TinyMachineDisplays;
+import dev.marggx.tinyfarms.TinyMachineState;
 import dev.marggx.tinyfarms.TinyMachines;
 import org.joml.Vector3d;
-import org.joml.Vector3i;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.List;
 
 /**
- * Lifecycle for the durability-fueled machine block.
- *
- * <p>Mirrors {@code BenchSystems.ProcessingBenchLifecycle}, except the saved
- * {@code lastTickGameTime} is suppressed around {@code setupSlots} so the offline
- * batch-processing catch-up (which would consume the sapling and tool items via
- * {@code advanceProcessing}) never runs. The offline elapsed time is instead handled
- * by the tick system using the durability model.
+ * Mirrors {@code BenchSystems.ProcessingBenchLifecycle}, but sets the slots up through
+ * {@link TinyMachines#setupSlots} so the vanilla offline catch-up never consumes items.
  */
 public class TinyMachineLifecycleSystem extends RefSystem<ChunkStore> {
     private final ComponentType<ChunkStore, ProcessingBenchBlock> componentType;
@@ -52,7 +46,7 @@ public class TinyMachineLifecycleSystem extends RefSystem<ChunkStore> {
     }
 
     @Override
-    public com.hypixel.hytale.component.query.Query<ChunkStore> getQuery() {
+    public Query<ChunkStore> getQuery() {
         return componentType;
     }
 
@@ -65,42 +59,35 @@ public class TinyMachineLifecycleSystem extends RefSystem<ChunkStore> {
 
         var sectionRef = blockStateInfo.getSectionRef();
         if (!sectionRef.isValid()) return;
-
         var section = commandBuffer.getComponent(sectionRef, ChunkSection.getComponentType());
-        if (section == null) return;
         var blockSection = commandBuffer.getComponent(sectionRef, BlockSection.getComponentType());
-        if (blockSection == null) return;
+        if (section == null || blockSection == null) return;
 
         int blockIndex = blockStateInfo.getIndex();
-        int blockX = ChunkUtil.worldCoordFromLocalCoord(section.getX(), ChunkUtil.xFromIndex(blockIndex));
-        int blockY = ChunkUtil.worldCoordFromLocalCoord(section.getY(), ChunkUtil.yFromIndex(blockIndex));
-        int blockZ = ChunkUtil.worldCoordFromLocalCoord(section.getZ(), ChunkUtil.zFromIndex(blockIndex));
+        int localX = ChunkUtil.xFromIndex(blockIndex);
+        int localY = ChunkUtil.yFromIndex(blockIndex);
+        int localZ = ChunkUtil.zFromIndex(blockIndex);
 
-        var blockId = blockSection.get(ChunkUtil.xFromIndex(blockIndex), ChunkUtil.yFromIndex(blockIndex), ChunkUtil.zFromIndex(blockIndex));
-        var blockType = BlockType.getAssetMap().getAsset(blockId);
-        if (blockType == null) return;
-        var rotationIndex = blockSection.getRotationIndex(ChunkUtil.xFromIndex(blockIndex), ChunkUtil.yFromIndex(blockIndex), ChunkUtil.zFromIndex(blockIndex));
+        var blockType = BlockType.getAssetMap().getAsset(blockSection.get(localX, localY, localZ));
+        if (blockType == null || !machine.initializeBenchConfig(blockType)) return;
 
-        if (!machine.initializeBenchConfig(blockType)) return;
+        TinyMachines.setupSlots(machine, commandBuffer.getExternalData().getWorld(), benchBlock, blockStateInfo,
+                ChunkUtil.worldCoordFromLocalCoord(section.getX(), localX),
+                ChunkUtil.worldCoordFromLocalCoord(section.getY(), localY),
+                ChunkUtil.worldCoordFromLocalCoord(section.getZ(), localZ),
+                blockType, blockSection.getRotationIndex(localX, localY, localZ));
 
-        var world = commandBuffer.getExternalData().getWorld();
-
-        @Nullable var savedLastTick = machine.getLastTickGameTime();
-        machine.setLastTickGameTime(null);
-        try {
-            machine.setupSlots(world, benchBlock, blockStateInfo, blockX, blockY, blockZ, blockType, rotationIndex);
-        } finally {
-            machine.setLastTickGameTime(savedLastTick);
-        }
-
-        TinyMachines.applyFuelFilter(machine);
-        TinyMachines.trackTier(new Vector3i(blockX, blockY, blockZ), benchBlock.getTierLevel());
+        commandBuffer.ensureAndGetComponent(ref, TinyMachineState.getComponentType()).setTier(benchBlock.getTierLevel());
     }
 
     @Override
     public void onEntityRemove(@Nonnull Ref<ChunkStore> ref, @Nonnull RemoveReason reason, @Nonnull Store<ChunkStore> store, @Nonnull CommandBuffer<ChunkStore> commandBuffer) {
+        var world = commandBuffer.getExternalData().getWorld();
+        var state = commandBuffer.getComponent(ref, TinyMachineState.getComponentType());
+        if (state != null) TinyMachineDisplays.despawn(world, state);
+
+        var blockStateInfo = commandBuffer.getComponent(ref, blockStateInfoComponentType);
         if (reason == RemoveReason.UNLOAD) {
-            var blockStateInfo = commandBuffer.getComponent(ref, blockStateInfoComponentType);
             if (blockStateInfo != null) blockStateInfo.markNeedsSaving();
             return;
         }
@@ -109,14 +96,11 @@ public class TinyMachineLifecycleSystem extends RefSystem<ChunkStore> {
         if (benchBlock != null) WindowManager.closeAndRemoveAll(benchBlock.getWindows());
 
         var machine = commandBuffer.getComponent(ref, componentType);
-        if (machine == null) return;
-
-        var blockStateInfo = commandBuffer.getComponent(ref, blockStateInfoComponentType);
-        if (blockStateInfo == null) return;
+        var combinedItemContainer = machine != null ? machine.getItemContainer() : null;
+        if (combinedItemContainer == null || blockStateInfo == null) return;
 
         var sectionRef = blockStateInfo.getSectionRef();
         if (!sectionRef.isValid()) return;
-
         var section = commandBuffer.getComponent(sectionRef, ChunkSection.getComponentType());
         if (section == null) return;
 
@@ -125,20 +109,12 @@ public class TinyMachineLifecycleSystem extends RefSystem<ChunkStore> {
         int blockY = ChunkUtil.worldCoordFromLocalCoord(section.getY(), ChunkUtil.yFromIndex(blockIndex));
         int blockZ = ChunkUtil.worldCoordFromLocalCoord(section.getZ(), ChunkUtil.zFromIndex(blockIndex));
 
-        // Stop showing the input preview when the machine is gone (chunk reload re-spawns it)
-        TinyMachineDisplays.despawn(commandBuffer.getExternalData().getWorld(), blockX, blockY, blockZ);
-
-        var combinedItemContainer = machine.getItemContainer();
-        if (combinedItemContainer != null) {
-            final List<ItemStack> itemStacks = combinedItemContainer.dropAllItemStacks();
-
-            var world = commandBuffer.getExternalData().getWorld();
-            final var entityStore = world.getEntityStore().getStore();
-            final var dropPosition = new Vector3d(blockX + 0.5, blockY, blockZ + 0.5);
-            final Holder<EntityStore>[] itemEntityHolders = ItemComponent.generateItemDrops(entityStore, itemStacks, dropPosition, Rotation3f.IDENTITY);
-            if (itemEntityHolders.length > 0) {
-                world.execute(() -> entityStore.addEntities(itemEntityHolders, AddReason.SPAWN));
-            }
+        final List<ItemStack> itemStacks = combinedItemContainer.dropAllItemStacks();
+        final var entityStore = world.getEntityStore().getStore();
+        final var dropPosition = new Vector3d(blockX + 0.5, blockY, blockZ + 0.5);
+        final Holder<EntityStore>[] itemEntityHolders = ItemComponent.generateItemDrops(entityStore, itemStacks, dropPosition, Rotation3f.IDENTITY);
+        if (itemEntityHolders.length > 0) {
+            world.execute(() -> entityStore.addEntities(itemEntityHolders, AddReason.SPAWN));
         }
     }
 }
